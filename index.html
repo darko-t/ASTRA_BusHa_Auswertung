@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>JupyterLite + Download All</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="https://unpkg.com/@jupyterlite/theme@0.3.0/theme.css" />
+  </head>
+  <body>
+    <jupyter-lite-host></jupyter-lite-host>
+
+    <!-- Optional download button -->
+    <button id="download-btn" style="position: absolute; top: 10px; right: 10px; z-index: 999;">
+      📦 Download All Notebooks
+    </button>
+
+    <script type="module">
+      import { JupyterLite } from './build/jupyter-lite.js';
+      import { ensureJupyterLite } from './build/ensure-jupyterlite.js';
+      import JSZip from 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm';
+
+      // Start JupyterLite
+      const lite = new JupyterLite();
+      await lite.load();
+      console.log("✅ JupyterLite loaded");
+
+      // Download all files
+      async function downloadAllFiles() {
+        const { contentsManager } = await ensureJupyterLite();
+
+        const zip = new JSZip();
+
+        const walk = async (path = '') => {
+          const listing = await contentsManager.get(path);
+          for (const item of listing.content) {
+            const fullPath = path ? `${path}/${item.name}` : item.name;
+            if (item.type === 'directory') {
+              await walk(fullPath);
+            } else {
+              const file = await contentsManager.get(fullPath, {
+                content: true,
+                format: 'text',
+              });
+              zip.file(fullPath, file.content);
+            }
+          }
+        };
+
+        await walk(); // Start from root
+
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'jupyterlite-files.zip';
+        link.click();
+        URL.revokeObjectURL(link.href);
+      }
+
+      // Attach event to button
+      document.getElementById('download-btn').addEventListener('click', downloadAllFiles);
+    </script>
+  </body>
+</html>
